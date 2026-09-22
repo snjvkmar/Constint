@@ -1,4 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Box from '@mui/material/Box';
+import AppBar from '@mui/material/AppBar';
+import Toolbar from '@mui/material/Toolbar';
+import Typography from '@mui/material/Typography';
+import Drawer from '@mui/material/Drawer';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Alert from '@mui/material/Alert';
+import Stack from '@mui/material/Stack';
+import HubIcon from '@mui/icons-material/Hub';
 import GraphCanvas from './components/GraphCanvas.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import DetailsPanel from './components/DetailsPanel.jsx';
@@ -6,14 +16,19 @@ import NodeFormModal from './components/NodeFormModal.jsx';
 import EdgeFormModal from './components/EdgeFormModal.jsx';
 import { api } from './api/client.js';
 
+const SIDEBAR_WIDTH = 300;
+const DETAILS_WIDTH = 340;
+
 export default function App() {
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
   const [nodeSchemas, setNodeSchemas] = useState({});
   const [edgeSchemas, setEdgeSchemas] = useState({});
   const [visibleLabels, setVisibleLabels] = useState(new Set());
+  const [visibleRelTypes, setVisibleRelTypes] = useState(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [selected, setSelected] = useState(null);
+  const [focus, setFocus] = useState(null); // { kind: 'node'|'edge', id } — 1-hop isolation
   const [modal, setModal] = useState(null);
   const [linkMode, setLinkMode] = useState(false);
   const [linkSource, setLinkSource] = useState(null);
@@ -31,6 +46,7 @@ export default function App() {
       setNodeSchemas(meta.nodeSchemas);
       setEdgeSchemas(meta.edgeSchemas);
       setVisibleLabels((prev) => (prev.size ? prev : new Set(Object.keys(meta.nodeSchemas))));
+      setVisibleRelTypes((prev) => (prev.size ? prev : new Set(Object.keys(meta.edgeSchemas))));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -48,7 +64,7 @@ export default function App() {
     return nodes.filter((n) => (n.properties.name || '').toLowerCase().includes(q));
   }, [nodes, searchTerm]);
 
-  const counts = useMemo(() => {
+  const nodeCounts = useMemo(() => {
     const c = {};
     nodes.forEach((n) => {
       const l = n.labels[0];
@@ -57,11 +73,28 @@ export default function App() {
     return c;
   }, [nodes]);
 
+  const edgeCounts = useMemo(() => {
+    const c = {};
+    edges.forEach((e) => {
+      c[e.type] = (c[e.type] || 0) + 1;
+    });
+    return c;
+  }, [edges]);
+
   function toggleLabel(label) {
     setVisibleLabels((prev) => {
       const next = new Set(prev);
       if (next.has(label)) next.delete(label);
       else next.add(label);
+      return next;
+    });
+  }
+
+  function toggleRelType(type) {
+    setVisibleRelTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
       return next;
     });
   }
@@ -88,6 +121,14 @@ export default function App() {
 
   function handleBackgroundClick() {
     setSelected(null);
+  }
+
+  function handleFocus(sel) {
+    setFocus({ kind: sel.kind, id: sel.data.id });
+  }
+
+  function handleClearFocus() {
+    setFocus(null);
   }
 
   async function handleSaveNode(payload) {
@@ -118,81 +159,145 @@ export default function App() {
     if (!window.confirm(confirmMsg)) return;
     if (sel.kind === 'node') await api.deleteNode(sel.data.id);
     else await api.deleteEdge(sel.data.id);
+    if (focus && focus.kind === sel.kind && focus.id === sel.data.id) setFocus(null);
     setSelected(null);
     await loadAll();
   }
 
+  const focusLabel = useMemo(() => {
+    if (!focus) return null;
+    if (focus.kind === 'node') {
+      const n = nodes.find((x) => x.id === focus.id);
+      return n ? n.properties.name : null;
+    }
+    const e = edges.find((x) => x.id === focus.id);
+    return e ? (edgeSchemas[e.type]?.label || e.type) : null;
+  }, [focus, nodes, edges, edgeSchemas]);
+
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>Constint</h1>
-        <span className="subtitle">Project &amp; Asset Dependency Graph — Subsea Cable Operations</span>
-        {loading && <span className="status">Loading…</span>}
-        {error && <span className="status error">Error: {error}</span>}
-        {linkMode && (
-          <span className="status link-hint">
-            {linkSource ? `Selected "${linkSource.properties.name}" — click target node…` : 'Click a source node…'}
-          </span>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      <AppBar position="static" color="inherit" elevation={1}>
+        <Toolbar sx={{ gap: 2 }}>
+          <Typography variant="h6" component="h1" sx={{ fontWeight: 700 }}>
+            Constint
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ display: { xs: 'none', md: 'block' } }}>
+            Project &amp; Asset Dependency Graph — Subsea Cable Operations
+          </Typography>
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ ml: 'auto' }}>
+            {loading && <CircularProgress size={18} />}
+            {linkMode && (
+              <Chip
+                size="small"
+                color="primary"
+                label={linkSource ? `Selected "${linkSource.properties.name}" — click target node…` : 'Click a source node…'}
+              />
+            )}
+          </Stack>
+        </Toolbar>
+        {error && (
+          <Alert severity="error" sx={{ borderRadius: 0 }}>
+            {error}
+          </Alert>
         )}
-      </header>
+      </AppBar>
 
-      <Sidebar
-        nodeSchemas={nodeSchemas}
-        edgeSchemas={edgeSchemas}
-        visibleLabels={visibleLabels}
-        onToggleLabel={toggleLabel}
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        onCreateNode={() => setModal({ kind: 'node', mode: 'create' })}
-        onCreateEdge={() => setModal({ kind: 'edge', mode: 'create' })}
-        linkMode={linkMode}
-        onToggleLinkMode={() => {
-          setLinkMode((v) => !v);
-          setLinkSource(null);
-        }}
-        layoutName={layoutName}
-        onLayoutChange={setLayoutName}
-        counts={counts}
-      />
+      <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        <Drawer
+          variant="permanent"
+          sx={{
+            width: SIDEBAR_WIDTH,
+            flexShrink: 0,
+            '& .MuiDrawer-paper': { width: SIDEBAR_WIDTH, position: 'relative', boxSizing: 'border-box' },
+          }}
+        >
+          <Sidebar
+            nodeSchemas={nodeSchemas}
+            edgeSchemas={edgeSchemas}
+            visibleLabels={visibleLabels}
+            onToggleLabel={toggleLabel}
+            visibleRelTypes={visibleRelTypes}
+            onToggleRelType={toggleRelType}
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            onCreateNode={() => setModal({ kind: 'node', mode: 'create' })}
+            onCreateEdge={() => setModal({ kind: 'edge', mode: 'create' })}
+            linkMode={linkMode}
+            onToggleLinkMode={() => {
+              setLinkMode((v) => !v);
+              setLinkSource(null);
+            }}
+            layoutName={layoutName}
+            onLayoutChange={setLayoutName}
+            nodeCounts={nodeCounts}
+            edgeCounts={edgeCounts}
+          />
+        </Drawer>
 
-      <div className="canvas-wrap">
-        <GraphCanvas
-          nodes={filteredNodes}
-          edges={edges}
-          nodeSchemas={nodeSchemas}
-          visibleLabels={visibleLabels}
-          linkMode={linkMode}
-          layoutName={layoutName}
-          onNodeClick={handleNodeClick}
-          onEdgeClick={handleEdgeClick}
-          onBackgroundClick={handleBackgroundClick}
-        />
-      </div>
+        <Box sx={{ flex: 1, position: 'relative', minWidth: 0 }}>
+          {focus && (
+            <Chip
+              icon={<HubIcon fontSize="small" />}
+              label={`Showing only connected to "${focusLabel}"`}
+              onDelete={handleClearFocus}
+              color="primary"
+              variant="filled"
+              sx={{ position: 'absolute', top: 12, left: 12, zIndex: 10, bgcolor: 'background.paper', color: 'text.primary', border: 1, borderColor: 'primary.main' }}
+            />
+          )}
+          <GraphCanvas
+            nodes={filteredNodes}
+            edges={edges}
+            nodeSchemas={nodeSchemas}
+            visibleLabels={visibleLabels}
+            visibleRelTypes={visibleRelTypes}
+            focus={focus}
+            linkMode={linkMode}
+            layoutName={layoutName}
+            onNodeClick={handleNodeClick}
+            onEdgeClick={handleEdgeClick}
+            onBackgroundClick={handleBackgroundClick}
+          />
+        </Box>
 
-      <DetailsPanel
-        selected={selected}
-        nodeSchemas={nodeSchemas}
-        edgeSchemas={edgeSchemas}
-        onEdit={(sel) => {
-          if (sel.kind === 'node') {
-            setModal({ kind: 'node', mode: 'edit', initialLabel: sel.data.labels[0], initialNode: sel.data });
-          } else {
-            setModal({
-              kind: 'edge',
-              mode: 'edit',
-              initial: {
-                type: sel.data.type,
-                sourceId: sel.data.startNodeId,
-                targetId: sel.data.endNodeId,
-                properties: sel.data.properties,
-              },
-              initialEdge: sel.data,
-            });
-          }
-        }}
-        onDelete={handleDelete}
-        onClose={() => setSelected(null)}
-      />
+        <Drawer
+          variant="permanent"
+          anchor="right"
+          sx={{
+            width: DETAILS_WIDTH,
+            flexShrink: 0,
+            '& .MuiDrawer-paper': { width: DETAILS_WIDTH, position: 'relative', boxSizing: 'border-box' },
+          }}
+        >
+          <DetailsPanel
+            selected={selected}
+            focus={focus}
+            nodeSchemas={nodeSchemas}
+            edgeSchemas={edgeSchemas}
+            onEdit={(sel) => {
+              if (sel.kind === 'node') {
+                setModal({ kind: 'node', mode: 'edit', initialLabel: sel.data.labels[0], initialNode: sel.data });
+              } else {
+                setModal({
+                  kind: 'edge',
+                  mode: 'edit',
+                  initial: {
+                    type: sel.data.type,
+                    sourceId: sel.data.startNodeId,
+                    targetId: sel.data.endNodeId,
+                    properties: sel.data.properties,
+                  },
+                  initialEdge: sel.data,
+                });
+              }
+            }}
+            onDelete={handleDelete}
+            onFocus={handleFocus}
+            onClearFocus={handleClearFocus}
+            onClose={() => setSelected(null)}
+          />
+        </Drawer>
+      </Box>
 
       {modal?.kind === 'node' && (
         <NodeFormModal
@@ -215,6 +320,6 @@ export default function App() {
           onCancel={() => setModal(null)}
         />
       )}
-    </div>
+    </Box>
   );
 }

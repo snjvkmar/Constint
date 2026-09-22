@@ -1,4 +1,12 @@
 import { useMemo, useState } from 'react';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
+import Button from '@mui/material/Button';
+import Stack from '@mui/material/Stack';
 
 function initFieldValues(fields, existing = {}) {
   const values = {};
@@ -61,71 +69,100 @@ export default function EdgeFormModal({ nodes, edgeSchemas, mode, initial, onSub
   }
 
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
-      <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-        <h3>{mode === 'edit' ? 'Edit Dependency' : 'Create Dependency'}</h3>
-        <label className="form-row">
-          Relationship Type
-          <select value={type} disabled={mode === 'edit'} onChange={(e) => handleTypeChange(e.target.value)}>
-            {relTypes.map((t) => (
-              <option key={t} value={t}>
-                {edgeSchemas[t].label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="form-row">
-          From
-          <select value={sourceId} disabled={mode === 'edit'} required onChange={(e) => setSourceId(e.target.value)}>
-            <option value="">Select source node…</option>
-            {sourceOptions.map((n) => (
-              <option key={n.id} value={n.id}>
-                {nodeLabel(n)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="form-row">
-          To
-          <select value={targetId} disabled={mode === 'edit'} required onChange={(e) => setTargetId(e.target.value)}>
-            <option value="">Select target node…</option>
-            {targetOptions.map((n) => (
-              <option key={n.id} value={n.id}>
-                {nodeLabel(n)}
-              </option>
-            ))}
-          </select>
-        </label>
-        {fields.map((f) => (
-          <label className="form-row" key={f.name}>
-            {f.label}
-            {f.type === 'enum' ? (
-              <select value={values[f.name]} onChange={(e) => handleChange(f.name, e.target.value)}>
-                <option value="">—</option>
-                {f.options.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
-                value={values[f.name]}
-                onChange={(e) => handleChange(f.name, e.target.value)}
-              />
+    <Dialog open onClose={onCancel} fullWidth maxWidth="xs">
+      <form onSubmit={handleSubmit}>
+        <DialogTitle>{mode === 'edit' ? 'Edit Dependency' : 'Create Dependency'}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 0.5 }}>
+            <TextField
+              select
+              label="Relationship Type"
+              value={type}
+              disabled={mode === 'edit'}
+              onChange={(e) => handleTypeChange(e.target.value)}
+              fullWidth
+              size="small"
+            >
+              {relTypes.map((t) => (
+                <MenuItem key={t} value={t}>
+                  {edgeSchemas[t].label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="From"
+              value={sourceId}
+              disabled={mode === 'edit'}
+              required
+              onChange={(e) => setSourceId(e.target.value)}
+              fullWidth
+              size="small"
+            >
+              <MenuItem value="">Select source node…</MenuItem>
+              {sourceOptions.map((n) => (
+                <MenuItem key={n.id} value={n.id}>
+                  {nodeLabel(n)}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="To"
+              value={targetId}
+              disabled={mode === 'edit'}
+              required
+              onChange={(e) => setTargetId(e.target.value)}
+              fullWidth
+              size="small"
+            >
+              <MenuItem value="">Select target node…</MenuItem>
+              {targetOptions.map((n) => (
+                <MenuItem key={n.id} value={n.id}>
+                  {nodeLabel(n)}
+                </MenuItem>
+              ))}
+            </TextField>
+            {fields.map((f) =>
+              f.type === 'enum' ? (
+                <TextField
+                  key={f.name}
+                  select
+                  label={f.label}
+                  value={values[f.name]}
+                  onChange={(e) => handleChange(f.name, e.target.value)}
+                  fullWidth
+                  size="small"
+                >
+                  <MenuItem value="">—</MenuItem>
+                  {f.options.map((o) => (
+                    <MenuItem key={o} value={o}>
+                      {o}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              ) : (
+                <TextField
+                  key={f.name}
+                  label={f.label}
+                  type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
+                  value={values[f.name]}
+                  onChange={(e) => handleChange(f.name, e.target.value)}
+                  fullWidth
+                  size="small"
+                  slotProps={f.type === 'date' ? { inputLabel: { shrink: true } } : undefined}
+                />
+              )
             )}
-          </label>
-        ))}
-        <div className="modal-actions">
-          <button type="button" onClick={onCancel}>
-            Cancel
-          </button>
-          <button type="submit" className="primary">
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={onCancel}>Cancel</Button>
+          <Button type="submit" variant="contained">
             {mode === 'edit' ? 'Save' : 'Create'}
-          </button>
-        </div>
+          </Button>
+        </DialogActions>
       </form>
-    </div>
+    </Dialog>
   );
 }

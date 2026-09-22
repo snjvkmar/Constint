@@ -7,10 +7,39 @@ cytoscape.use(coseBilkent);
 const DEFAULT_COLOR = '#64748b';
 const DEFAULT_SHAPE = 'ellipse';
 
-function buildElements(nodes, edges, visibleLabels) {
+// Given an optional focus ({ kind: 'node' | 'edge', id }), compute the set of
+// node/edge ids that make up its 1-hop neighborhood: for a focused node, the
+// node itself plus everything directly connected to it; for a focused edge,
+// its two endpoints plus every edge directly between them.
+function computeFocusSets(edges, focus) {
+  if (!focus) return null;
+
+  if (focus.kind === 'node') {
+    const nodeIds = new Set([focus.id]);
+    const relevantEdges = edges.filter((e) => e.startNodeId === focus.id || e.endNodeId === focus.id);
+    relevantEdges.forEach((e) => {
+      nodeIds.add(e.startNodeId);
+      nodeIds.add(e.endNodeId);
+    });
+    return { nodeIds, edgeIds: new Set(relevantEdges.map((e) => e.id)) };
+  }
+
+  const edge = edges.find((e) => e.id === focus.id);
+  if (!edge) return null;
+  const nodeIds = new Set([edge.startNodeId, edge.endNodeId]);
+  const edgeIds = new Set(
+    edges.filter((e) => nodeIds.has(e.startNodeId) && nodeIds.has(e.endNodeId)).map((e) => e.id)
+  );
+  return { nodeIds, edgeIds };
+}
+
+function buildElements(nodes, edges, visibleLabels, visibleRelTypes, focus) {
+  const focusSets = computeFocusSets(edges, focus);
+
   const visibleNodeIds = new Set();
   const nodeEls = nodes
     .filter((n) => n.labels.some((l) => visibleLabels.has(l)))
+    .filter((n) => !focusSets || focusSets.nodeIds.has(n.id))
     .map((n) => {
       visibleNodeIds.add(n.id);
       const primaryLabel = n.labels[0];
@@ -25,7 +54,9 @@ function buildElements(nodes, edges, visibleLabels) {
     });
 
   const edgeEls = edges
+    .filter((e) => visibleRelTypes.has(e.type))
     .filter((e) => visibleNodeIds.has(e.startNodeId) && visibleNodeIds.has(e.endNodeId))
+    .filter((e) => !focusSets || focusSets.edgeIds.has(e.id))
     .map((e) => ({
       data: {
         id: e.id,
@@ -48,6 +79,8 @@ export default function GraphCanvas({
   edges,
   nodeSchemas,
   visibleLabels,
+  visibleRelTypes,
+  focus,
   linkMode,
   onNodeClick,
   onEdgeClick,
@@ -129,12 +162,12 @@ export default function GraphCanvas({
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    const elements = buildElements(nodes, edges, visibleLabels);
+    const elements = buildElements(nodes, edges, visibleLabels, visibleRelTypes, focus);
     cy.elements().remove();
     cy.add(elements);
     runLayout(cy, layoutName);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, nodeSchemas, visibleLabels]);
+  }, [nodes, edges, nodeSchemas, visibleLabels, visibleRelTypes, focus]);
 
   useEffect(() => {
     const cy = cyRef.current;

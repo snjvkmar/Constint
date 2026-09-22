@@ -1,10 +1,47 @@
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import FormGroup from '@mui/material/FormGroup';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Checkbox from '@mui/material/Checkbox';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import Button from '@mui/material/Button';
+import Stack from '@mui/material/Stack';
+import Divider from '@mui/material/Divider';
+import SearchIcon from '@mui/icons-material/Search';
+import AddIcon from '@mui/icons-material/Add';
+import CallSplitIcon from '@mui/icons-material/CallSplit';
+import LinkIcon from '@mui/icons-material/Link';
+
 const LAYOUTS = ['cose-bilkent', 'breadthfirst', 'concentric', 'grid', 'circle'];
+
+function TypeRow({ color, name, count }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1 }}>
+      {color && (
+        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+      )}
+      <Typography variant="body2" sx={{ flex: 1 }}>
+        {name}
+      </Typography>
+      <Typography variant="caption" color="text.secondary">
+        {count}
+      </Typography>
+    </Box>
+  );
+}
 
 export default function Sidebar({
   nodeSchemas,
   edgeSchemas,
   visibleLabels,
   onToggleLabel,
+  visibleRelTypes,
+  onToggleRelType,
   searchTerm,
   onSearchChange,
   onCreateNode,
@@ -13,61 +50,106 @@ export default function Sidebar({
   onToggleLinkMode,
   layoutName,
   onLayoutChange,
-  counts,
+  nodeCounts,
+  edgeCounts,
 }) {
   const labels = Object.keys(nodeSchemas);
+  const relTypes = Object.keys(edgeSchemas);
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-section">
-        <h3>Search</h3>
-        <input
-          type="text"
-          placeholder="Search by name..."
-          value={searchTerm}
-          onChange={(e) => onSearchChange(e.target.value)}
-        />
-      </div>
+    <Box sx={{ p: 2, overflowY: 'auto', height: '100%' }}>
+      <Typography variant="overline" color="text.secondary">
+        Search
+      </Typography>
+      <TextField
+        fullWidth
+        size="small"
+        placeholder="Search by name..."
+        value={searchTerm}
+        onChange={(e) => onSearchChange(e.target.value)}
+        slotProps={{
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+          },
+        }}
+        sx={{ mb: 3, mt: 1 }}
+      />
 
-      <div className="sidebar-section">
-        <h3>Node Types</h3>
+      <Typography variant="overline" color="text.secondary">
+        Node Types
+      </Typography>
+      <FormGroup sx={{ mb: 3 }}>
         {labels.map((label) => (
-          <label key={label} className="checkbox-row">
-            <input type="checkbox" checked={visibleLabels.has(label)} onChange={() => onToggleLabel(label)} />
-            <span className="swatch" style={{ background: nodeSchemas[label].color }} />
-            {label} <span className="count">({counts[label] || 0})</span>
-          </label>
+          <FormControlLabel
+            key={label}
+            sx={{ mr: 0, width: '100%' }}
+            control={
+              <Checkbox
+                size="small"
+                checked={visibleLabels.has(label)}
+                onChange={() => onToggleLabel(label)}
+                sx={{ color: nodeSchemas[label].color, '&.Mui-checked': { color: nodeSchemas[label].color } }}
+              />
+            }
+            label={<TypeRow color={nodeSchemas[label].color} name={label} count={nodeCounts[label] || 0} />}
+          />
         ))}
-      </div>
+      </FormGroup>
 
-      <div className="sidebar-section">
-        <h3>Layout</h3>
-        <select value={layoutName} onChange={(e) => onLayoutChange(e.target.value)}>
+      <Typography variant="overline" color="text.secondary">
+        Relationship Types
+      </Typography>
+      <FormGroup sx={{ mb: 3 }}>
+        {relTypes.map((type) => (
+          <FormControlLabel
+            key={type}
+            sx={{ mr: 0, width: '100%' }}
+            control={
+              <Checkbox size="small" checked={visibleRelTypes.has(type)} onChange={() => onToggleRelType(type)} />
+            }
+            label={<TypeRow name={edgeSchemas[type].label} count={edgeCounts[type] || 0} />}
+          />
+        ))}
+      </FormGroup>
+
+      <Divider sx={{ mb: 3 }} />
+
+      <FormControl fullWidth size="small" sx={{ mb: 3 }}>
+        <InputLabel id="layout-label">Layout</InputLabel>
+        <Select
+          labelId="layout-label"
+          label="Layout"
+          value={layoutName}
+          onChange={(e) => onLayoutChange(e.target.value)}
+        >
           {LAYOUTS.map((l) => (
-            <option key={l} value={l}>
+            <MenuItem key={l} value={l}>
               {l}
-            </option>
+            </MenuItem>
           ))}
-        </select>
-      </div>
+        </Select>
+      </FormControl>
 
-      <div className="sidebar-section actions">
-        <h3>Create</h3>
-        <button onClick={onCreateNode}>+ Add Node</button>
-        <button onClick={onCreateEdge}>+ Add Dependency</button>
-        <button className={linkMode ? 'active' : ''} onClick={onToggleLinkMode}>
-          {linkMode ? 'Click two nodes… (cancel)' : 'Link Mode: click 2 nodes'}
-        </button>
-      </div>
-
-      <div className="sidebar-section legend">
-        <h3>Relationship Types</h3>
-        <ul>
-          {Object.values(edgeSchemas).map((s) => (
-            <li key={s.type}>{s.label}</li>
-          ))}
-        </ul>
-      </div>
-    </aside>
+      <Stack spacing={1}>
+        <Button variant="outlined" startIcon={<AddIcon />} onClick={onCreateNode}>
+          Add Node
+        </Button>
+        <Button variant="outlined" startIcon={<CallSplitIcon />} onClick={onCreateEdge}>
+          Add Dependency
+        </Button>
+        <Button
+          variant={linkMode ? 'contained' : 'outlined'}
+          color="primary"
+          startIcon={<LinkIcon />}
+          onClick={onToggleLinkMode}
+        >
+          {linkMode ? 'Click two nodes… (cancel)' : 'Link Mode'}
+        </Button>
+      </Stack>
+    </Box>
   );
 }
