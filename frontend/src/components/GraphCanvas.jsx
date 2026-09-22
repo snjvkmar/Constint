@@ -40,7 +40,7 @@ function buildElements(nodes, edges, visibleLabels) {
 }
 
 function runLayout(cy, layoutName) {
-  cy.layout({ name: layoutName || 'cose-bilkent', animate: true, randomize: false, fit: true, padding: 40 }).run();
+  cy.layout({ name: layoutName || 'cose-bilkent', animate: true, randomize: true, fit: true, padding: 40 }).run();
 }
 
 export default function GraphCanvas({
